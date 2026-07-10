@@ -41,7 +41,16 @@ let currentRecentIndex = 0;
 let lastInlinePayload = null;
 
 const RUNTIME_KEY = `__sceneBoardRuntime_${EXT_NAME}`;
-const runtime = window[RUNTIME_KEY] || (window[RUNTIME_KEY] = { eventBindings: [], externalUpdateHandler: null });
+const runtime = window[RUNTIME_KEY] || (window[RUNTIME_KEY] = {
+  eventBindings: [],
+  externalUpdateHandler: null,
+  settingsSaveReady: false,
+  pendingSettingsSave: false,
+  pendingSettingsSaveNow: false,
+});
+if (runtime.settingsSaveReady !== true) runtime.settingsSaveReady = false;
+if (runtime.pendingSettingsSave !== true) runtime.pendingSettingsSave = false;
+if (runtime.pendingSettingsSaveNow !== true) runtime.pendingSettingsSaveNow = false;
 
 function offEventSourceBinding(binding) {
   if (!binding?.source || !binding?.event || !binding?.handler) return;
@@ -83,17 +92,50 @@ function toast(message, tone = 'info') {
     }
   } catch {}
 }
-function saveSettings(now = false) {
+function settingsSaveCanStart() {
+  if (runtime.settingsSaveReady === true) return true;
+  try {
+    const live = liveContext();
+    if (document.readyState === 'complete' && Array.isArray(live?.chat)) {
+      runtime.settingsSaveReady = true;
+      return true;
+    }
+  } catch {}
+  return false;
+}
+function commitSettingsSave(now = false) {
   clearTimeout(saveTimer);
   const run = () => {
     try {
-      settings.fontSize = clampFontSize(settings.fontSize);
-      extension_settings[EXT_NAME] = Object.assign({}, settings);
       if (now && typeof ctx?.saveSettings === 'function') ctx.saveSettings();
       else ctx?.saveSettingsDebounced?.();
     } catch (e) { console.error('[Scene Board] save failed', e); }
   };
   if (now) run(); else saveTimer = setTimeout(run, 180);
+}
+function markSettingsSaveReady() {
+  runtime.settingsSaveReady = true;
+  if (!runtime.pendingSettingsSave) return;
+  const now = runtime.pendingSettingsSaveNow === true;
+  runtime.pendingSettingsSave = false;
+  runtime.pendingSettingsSaveNow = false;
+  commitSettingsSave(now);
+}
+function saveSettings(now = false) {
+  clearTimeout(saveTimer);
+  try {
+    settings.fontSize = clampFontSize(settings.fontSize);
+    extension_settings[EXT_NAME] = Object.assign({}, settings);
+  } catch (e) {
+    console.error('[Scene Board] settings snapshot failed', e);
+    return;
+  }
+  if (!settingsSaveCanStart()) {
+    runtime.pendingSettingsSave = true;
+    runtime.pendingSettingsSaveNow = runtime.pendingSettingsSaveNow || now;
+    return;
+  }
+  commitSettingsSave(now);
 }
 function persistChat() {
   try {
@@ -525,6 +567,11 @@ function addRecent(entry) {
   if (!entry?.text) return null;
   const store = recentList(entry.characterKey);
   const existingIndex = store.findIndex(item => sameEntry(item, entry));
+  if (existingIndex === 0 && JSON.stringify(store[0]) === JSON.stringify(entry)) {
+    currentRecentIndex = 0;
+    if (entry.chatKey === currentChatKey()) applyScenePrompt(store[0]);
+    return store[0];
+  }
   if (existingIndex >= 0) store.splice(existingIndex, 1);
   store.unshift(entry);
   while (store.length > 3) store.pop();
@@ -895,6 +942,7 @@ function setupEvents() {
   const et = ctx?.event_types || {};
   if (es && typeof es.on === 'function') {
     const bind = (name, fn) => { if (et[name]) bindRuntimeEvent(es, et[name], fn); };
+    bind('APP_READY', markSettingsSaveReady);
     bind('CHARACTER_MESSAGE_RENDERED', (...args) => {
       if (!settings.enabled) return;
       setTimeout(() => {
@@ -976,6 +1024,7 @@ function boot() {
   setupSettingsPanel();
   setupExtensionsMenuButton();
   setupEvents();
+  settingsSaveCanStart();
   exposeSceneBoardApi();
   setTimeout(setupExtensionsMenuButton, 900);
   setTimeout(() => { if (settings.enabled) { refreshScenePrompt(); renderInlinePanel(); } }, 1000);
