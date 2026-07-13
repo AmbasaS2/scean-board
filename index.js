@@ -6,6 +6,7 @@ const VERSION = '1.0.7';
 const ctx = getContext();
 const UI_PREFIX = EXT_NAME === 'scene-board-beta' ? 'sbb' : 'sb';
 const MESSAGE_EDIT_SELECTOR = '.mes_edit,.edit_mes,.mes_edit_button,[class*="mes_edit"],[class*="edit_mes"]';
+const MAX_RECENT_BOARDS = 3;
 
 const defaults = {
   enabled: true,
@@ -175,9 +176,39 @@ function currentChatKey() {
   const chatName = live.chatId || live.chat_id || live.chatName || live.chat_name || live.chatFile || live.currentChatId || 'current';
   return hash(`${id}::${chatName}`);
 }
+function stripOriginalMes(entry = {}) {
+  const copy = Object.assign({}, entry || {});
+  delete copy.originalMes;
+  return copy;
+}
+function sanitizeStoredEntries() {
+  let changed = false;
+  for (const [charKey, value] of Object.entries(settings.recentByCharacter || {})) {
+    const source = Array.isArray(value) ? value : [];
+    const cleaned = source.slice(0, MAX_RECENT_BOARDS).map((entry) => {
+      const copy = Object.assign({}, entry || {});
+      if (!String(copy.originalMes || '').trimEnd()) delete copy.originalMes;
+      return copy;
+    });
+    if (!Array.isArray(value) || JSON.stringify(value) !== JSON.stringify(cleaned)) {
+      settings.recentByCharacter[charKey] = cleaned;
+      changed = true;
+    }
+  }
+  for (const [charKey, value] of Object.entries(settings.boardsByCharacter || {})) {
+    const source = Array.isArray(value) ? value : [];
+    const cleaned = source.map(stripOriginalMes);
+    if (!Array.isArray(value) || JSON.stringify(value) !== JSON.stringify(cleaned)) {
+      settings.boardsByCharacter[charKey] = cleaned;
+      changed = true;
+    }
+  }
+  return changed;
+}
 function ensureCharacterStores(charKey = currentCharacterKey()) {
   if (!settings.recentByCharacter[charKey] || !Array.isArray(settings.recentByCharacter[charKey])) settings.recentByCharacter[charKey] = [];
   if (!settings.boardsByCharacter[charKey] || !Array.isArray(settings.boardsByCharacter[charKey])) settings.boardsByCharacter[charKey] = [];
+  if (settings.recentByCharacter[charKey].length > MAX_RECENT_BOARDS) settings.recentByCharacter[charKey] = settings.recentByCharacter[charKey].slice(0, MAX_RECENT_BOARDS);
   return { recent: settings.recentByCharacter[charKey], saved: settings.boardsByCharacter[charKey] };
 }
 function applyFontSize() {
@@ -277,20 +308,16 @@ function latestCharacterPayload() {
 
 
 function originalMessageBackup(payload) {
-  const msg = payload?.msg;
-  const scene = msg?.extra?.sceneBoard;
-  const direct = String(msg?.extra?.sceneBoardOriginalMes || scene?.originalMes || '').trimEnd();
-  if (direct) return direct;
-
-  const charKey = scene?.characterKey || currentCharacterKey();
-  const chatKey = scene?.chatKey || currentChatKey();
-  const messageId = String(scene?.messageId || messageIdForPayload(payload) || '');
-  const candidates = [...recentList(charKey), ...savedList(charKey)];
-  const found = candidates.find((entry) => {
+  const scene = payload?.msg?.extra?.sceneBoard;
+  if (!scene) return '';
+  const charKey = scene.characterKey || currentCharacterKey();
+  const chatKey = scene.chatKey || currentChatKey();
+  const messageId = String(scene.messageId || messageIdForPayload(payload) || '');
+  const found = recentList(charKey).find((entry) => {
     if (!entry?.originalMes) return false;
     if (entry.chatKey && chatKey && entry.chatKey !== chatKey) return false;
     if (entry.messageId && messageId && String(entry.messageId) !== messageId) return false;
-    return scene ? sameEntry(entry, scene) : true;
+    return sameEntry(entry, scene);
   });
   return String(found?.originalMes || '').trimEnd();
 }
@@ -367,7 +394,7 @@ function restoreOriginalMessage(payload) {
   saveSettings(true);
   refreshScenePrompt();
   renderInlinePanel();
-  ensureRestoreButton(payload.mes);
+  syncRestoreButtons(document.getElementById('chat') || document);
   toast('분리 전 원문으로 복구했습니다.', 'success');
   return true;
 }
@@ -637,7 +664,7 @@ function makeEntry(payload, board, body, splitMode = '') {
     sourceName: payload?.source || currentCharacterName(),
     text: String(board || '').trimEnd(),
     body: String(body || '').trimEnd(),
-    originalMes: String(payload?.msg?.extra?.sceneBoardOriginalMes || payload?.msg?.mes || payload?.text || `${body || ''}
+    originalMes: String(payload?.msg?.mes || payload?.text || `${body || ''}
 
 ${board || ''}` || '').trimEnd(),
     time: meta.time,
@@ -665,25 +692,32 @@ function addRecent(entry) {
   if (!entry?.text) return null;
   const store = recentList(entry.characterKey);
   const existingIndex = store.findIndex(item => sameEntry(item, entry));
-  if (existingIndex === 0 && JSON.stringify(store[0]) === JSON.stringify(entry)) {
+  const existing = existingIndex >= 0 ? store[existingIndex] : null;
+  const merged = Object.assign({}, entry);
+  if (!String(merged.originalMes || '').trimEnd() && String(existing?.originalMes || '').trimEnd()) {
+    merged.originalMes = String(existing.originalMes).trimEnd();
+  }
+  if (!String(merged.originalMes || '').trimEnd()) delete merged.originalMes;
+  if (existingIndex === 0 && JSON.stringify(store[0]) === JSON.stringify(merged)) {
     currentRecentIndex = 0;
-    if (entry.chatKey === currentChatKey()) applyScenePrompt(store[0]);
+    if (merged.chatKey === currentChatKey()) applyScenePrompt(store[0]);
     return store[0];
   }
   if (existingIndex >= 0) store.splice(existingIndex, 1);
-  store.unshift(entry);
-  while (store.length > 3) store.pop();
+  store.unshift(merged);
+  while (store.length > MAX_RECENT_BOARDS) store.pop();
   currentRecentIndex = 0;
-  if (entry.chatKey === currentChatKey()) applyScenePrompt(entry);
+  if (merged.chatKey === currentChatKey()) applyScenePrompt(merged);
   saveSettings();
-  return entry;
+  setTimeout(() => syncRestoreButtons(document.getElementById('chat') || document), 0);
+  return merged;
 }
 function saveBoard(entry) {
   if (!entry?.text) return false;
   const store = savedList(entry.characterKey || currentCharacterKey());
   const exists = store.some(item => sameEntry(item, entry));
   if (!exists) {
-    const savedEntry = Object.assign({}, entry, { savedAt: Date.now() });
+    const savedEntry = stripOriginalMes(Object.assign({}, entry, { savedAt: Date.now() }));
     delete savedEntry.messageIndex;
     delete savedEntry.messageNumber;
     store.unshift(savedEntry);
@@ -713,11 +747,13 @@ function deleteRecentEntry(entry) {
   const scene = payload?.msg?.extra?.sceneBoard;
   if (scene && sameEntry(scene, entry)) {
     try { delete payload.msg.extra.sceneBoard; } catch {}
+    try { delete payload.msg.extra.sceneBoardOriginalMes; } catch {}
     persistChat();
   }
   refreshScenePrompt();
   saveSettings(true);
   renderInlinePanel();
+  syncRestoreButtons(document.getElementById('chat') || document);
   toast(before !== filtered.length ? '삭제했습니다.' : '삭제할 씬보드가 없습니다.', before !== filtered.length ? 'success' : 'info');
   return before !== filtered.length;
 }
@@ -759,11 +795,44 @@ function clearSceneBoardExtrasInLoadedChat(charKey = null) {
   let changed = false;
   for (const msg of chat) {
     const scene = msg?.extra?.sceneBoard;
-    if (!scene) continue;
-    if (charKey && String(scene.characterKey || '') !== String(charKey)) continue;
-    try { delete msg.extra.sceneBoard; changed = true; } catch {}
+    if (charKey && String(scene?.characterKey || '') !== String(charKey)) continue;
+    if (scene) {
+      try { delete msg.extra.sceneBoard; changed = true; } catch {}
+    }
+    if (msg?.extra?.sceneBoardOriginalMes) {
+      try { delete msg.extra.sceneBoardOriginalMes; changed = true; } catch {}
+    }
   }
   if (changed) persistChat();
+}
+function migrateAndPurgeLegacyOriginalBackups() {
+  let settingsChanged = sanitizeStoredEntries();
+  let chatChanged = false;
+  const chat = liveContext()?.chat || ctx?.chat || [];
+  for (const msg of chat) {
+    const scene = msg?.extra?.sceneBoard;
+    const legacyOriginal = String(msg?.extra?.sceneBoardOriginalMes || scene?.originalMes || '').trimEnd();
+    if (scene?.text && legacyOriginal) {
+      const charKey = scene.characterKey || currentCharacterKey();
+      const cached = recentList(charKey).find((entry) => sameEntry(entry, scene));
+      if (cached && !String(cached.originalMes || '').trimEnd()) {
+        cached.originalMes = legacyOriginal;
+        settingsChanged = true;
+      }
+    }
+    if (msg?.extra?.sceneBoardOriginalMes) {
+      try { delete msg.extra.sceneBoardOriginalMes; chatChanged = true; } catch {}
+    }
+    if (scene?.originalMes) {
+      try {
+        msg.extra.sceneBoard = stripOriginalMes(scene);
+        chatChanged = true;
+      } catch {}
+    }
+  }
+  if (chatChanged) persistChat();
+  if (settingsChanged) saveSettings(true);
+  return settingsChanged || chatChanged;
 }
 
 function processPayload(payload, opts = {}) {
@@ -774,17 +843,29 @@ function processPayload(payload, opts = {}) {
   const msg = payload.msg;
   const existing = msg?.extra?.sceneBoard;
   if (existing?.text) {
-    const entry = Object.assign({}, existing, {
+    const legacyOriginal = String(msg?.extra?.sceneBoardOriginalMes || existing.originalMes || '').trimEnd();
+    const entry = Object.assign({}, stripOriginalMes(existing), {
       characterKey: existing.characterKey || currentCharacterKey(),
       characterName: existing.characterName || currentCharacterName(),
       chatKey: existing.chatKey || currentChatKey(),
     });
+    const cached = recentList(entry.characterKey).find((item) => sameEntry(item, entry));
+    if (legacyOriginal) entry.originalMes = legacyOriginal;
+    else if (String(cached?.originalMes || '').trimEnd()) entry.originalMes = String(cached.originalMes).trimEnd();
     if (wasCleared(entry)) {
       try { delete msg.extra.sceneBoard; } catch {}
+      try { delete msg.extra.sceneBoardOriginalMes; } catch {}
       persistChat();
       return false;
     }
-    if (msg?.extra && (existing.characterKey !== entry.characterKey || existing.chatKey !== entry.chatKey)) msg.extra.sceneBoard = entry;
+    if (msg?.extra) {
+      const cleanScene = stripOriginalMes(entry);
+      if (existing.characterKey !== cleanScene.characterKey || existing.chatKey !== cleanScene.chatKey || existing.originalMes || msg.extra.sceneBoardOriginalMes) {
+        msg.extra.sceneBoard = cleanScene;
+        try { delete msg.extra.sceneBoardOriginalMes; } catch {}
+        persistChat();
+      }
+    }
     addRecent(entry);
     lastInlinePayload = payload;
     renderInlinePanel();
@@ -801,9 +882,8 @@ function processPayload(payload, opts = {}) {
   const entry = makeEntry(payload, split.board, split.body, split.mode || '');
   if (msg) {
     msg.extra = msg.extra || {};
-    if (!msg.extra.sceneBoardOriginalMes) msg.extra.sceneBoardOriginalMes = String(msg.mes || payload.text || source || '').trimEnd();
-    entry.originalMes = String(entry.originalMes || msg.extra.sceneBoardOriginalMes || '').trimEnd();
-    msg.extra.sceneBoard = entry;
+    msg.extra.sceneBoard = stripOriginalMes(entry);
+    try { delete msg.extra.sceneBoardOriginalMes; } catch {}
     msg.mes = split.body;
   }
   setMessageText(payload, split.body);
@@ -1069,7 +1149,11 @@ function setupEvents() {
       currentRecentIndex = 0;
       $('.sb-inline-panel').remove();
       setTimeout(() => {
-        if (!settings.enabled) return;
+        migrateAndPurgeLegacyOriginalBackups();
+        if (!settings.enabled) {
+          syncRestoreButtons(document.getElementById('chat') || document);
+          return;
+        }
         // Re-read the latest rendered reply in this chat. This restores its own
         // cached card without ever borrowing the previous chat's recent card.
         if (!parseLatestMessage(false)) {
@@ -1105,7 +1189,7 @@ function setupEvents() {
       clearScenePrompt();
       currentRecentIndex = 0;
       $('.sb-inline-panel').remove();
-      saveSettings(true); renderLibrary(); updateSavedCount(); toast('현재 캐릭터 씬보드를 초기화했습니다.', 'success'); return;
+      saveSettings(true); renderLibrary(); updateSavedCount(); syncRestoreButtons(document.getElementById('chat') || document); toast('현재 캐릭터 씬보드를 초기화했습니다.', 'success'); return;
     }
     if ($(t).closest('#sb-reset-all').length) {
       e.preventDefault(); e.stopPropagation();
@@ -1118,7 +1202,7 @@ function setupEvents() {
       clearScenePrompt();
       currentRecentIndex = 0;
       $('.sb-inline-panel').remove();
-      saveSettings(true); renderLibrary(); updateSavedCount(); toast('씬보드 내역 전체를 초기화했습니다.', 'success'); return;
+      saveSettings(true); renderLibrary(); updateSavedCount(); syncRestoreButtons(document.getElementById('chat') || document); toast('씬보드 내역 전체를 초기화했습니다.', 'success'); return;
     }
     const del = $(t).closest('.sb-card-delete');
     if (del.length) { e.preventDefault(); e.stopPropagation(); const card = del.closest('.sb-card'); deleteSavedBoard(String(card.data('char') || ''), String(card.data('id') || '')); return; }
@@ -1139,6 +1223,8 @@ function setupEvents() {
 function boot() {
   runtime.booted = true;
   runtime.version = VERSION;
+  sanitizeStoredEntries();
+  migrateAndPurgeLegacyOriginalBackups();
   applyFontSize();
   setupSettingsPanel();
   setupExtensionsMenuButton();
@@ -1146,7 +1232,14 @@ function boot() {
   settingsSaveCanStart();
   exposeSceneBoardApi();
   setTimeout(setupExtensionsMenuButton, 900);
-  setTimeout(() => { if (settings.enabled) { refreshScenePrompt(); renderInlinePanel(); syncRestoreButtons(document.getElementById('chat') || document); } }, 1000);
+  setTimeout(() => {
+    migrateAndPurgeLegacyOriginalBackups();
+    if (settings.enabled) {
+      refreshScenePrompt();
+      renderInlinePanel();
+    }
+    syncRestoreButtons(document.getElementById('chat') || document);
+  }, 1000);
 }
 
 if (typeof jQuery === 'function') jQuery(() => { try { boot(); } catch (e) { console.error('[Scene Board] boot failed', e); } });
