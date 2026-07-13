@@ -5,6 +5,7 @@ const DISPLAY_NAME = '🧭 Scene Board';
 const VERSION = '1.0.7';
 const ctx = getContext();
 const UI_PREFIX = EXT_NAME === 'scene-board-beta' ? 'sbb' : 'sb';
+const MESSAGE_EDIT_SELECTOR = '.mes_edit,.edit_mes,.mes_edit_button,[class*="mes_edit"],[class*="edit_mes"]';
 
 const defaults = {
   enabled: true,
@@ -272,6 +273,103 @@ function latestCharacterPayload() {
     if (payload && !payload.isUser) return payload;
   }
   return null;
+}
+
+
+function originalMessageBackup(payload) {
+  const msg = payload?.msg;
+  const scene = msg?.extra?.sceneBoard;
+  const direct = String(msg?.extra?.sceneBoardOriginalMes || scene?.originalMes || '').trimEnd();
+  if (direct) return direct;
+
+  const charKey = scene?.characterKey || currentCharacterKey();
+  const chatKey = scene?.chatKey || currentChatKey();
+  const messageId = String(scene?.messageId || messageIdForPayload(payload) || '');
+  const candidates = [...recentList(charKey), ...savedList(charKey)];
+  const found = candidates.find((entry) => {
+    if (!entry?.originalMes) return false;
+    if (entry.chatKey && chatKey && entry.chatKey !== chatKey) return false;
+    if (entry.messageId && messageId && String(entry.messageId) !== messageId) return false;
+    return scene ? sameEntry(entry, scene) : true;
+  });
+  return String(found?.originalMes || '').trimEnd();
+}
+function shouldSkipRestoredMessage(msg, source = '') {
+  const marker = String(msg?.extra?.sceneBoardRestoredHash || '');
+  if (!marker) return false;
+  const currentHash = hash(String(source || '').trimEnd());
+  if (currentHash === marker) return true;
+  try { delete msg.extra.sceneBoardRestoredHash; } catch {}
+  persistChat();
+  return false;
+}
+function ensureRestoreButton(mes) {
+  if (!mes?.matches?.('.mes')) return false;
+  const payload = messagePayloadFromElement(mes);
+  const $mes = $(mes);
+  const existing = $mes.find('.sb-restore-original-btn').first();
+  const canRestore = !!(payload?.msg?.extra?.sceneBoard && originalMessageBackup(payload));
+  if (!canRestore) {
+    existing.remove();
+    return false;
+  }
+  if (existing.length) return true;
+  const edit = $mes.find(MESSAGE_EDIT_SELECTOR).first();
+  if (!edit.length) return false;
+  const button = $('<div class="mes_button sb-restore-original-btn interactable" role="button" tabindex="0" title="씬보드 분리 전 원문으로 복구" aria-label="씬보드 분리 전 원문으로 복구">복구</div>');
+  edit.after(button);
+  return true;
+}
+function syncRestoreButtons(scope = document) {
+  try {
+    const $scope = $(scope);
+    if ($scope.is('.mes')) ensureRestoreButton($scope[0]);
+    $scope.find('.mes').each(function(){ ensureRestoreButton(this); });
+  } catch {}
+}
+function removeRecentForRestoredMessage(payload, scene = {}) {
+  const charKey = scene?.characterKey || currentCharacterKey();
+  const chatKey = scene?.chatKey || currentChatKey();
+  const messageId = String(scene?.messageId || messageIdForPayload(payload) || '');
+  const store = recentList(charKey);
+  settings.recentByCharacter[charKey] = store.filter((entry) => {
+    if (scene?.text && sameEntry(entry, scene)) return false;
+    return !(entry?.chatKey === chatKey && messageId && String(entry?.messageId || '') === messageId);
+  });
+  if (charKey === currentCharacterKey()) {
+    const list = currentChatRecentList(charKey);
+    currentRecentIndex = Math.min(currentRecentIndex, Math.max(0, list.length - 1));
+  }
+}
+function restoreOriginalMessage(payload) {
+  const msg = payload?.msg;
+  if (!msg || payload?.isUser) return false;
+  const original = originalMessageBackup(payload);
+  if (!original) {
+    toast('복구할 원문을 찾지 못했습니다.', 'warn');
+    return false;
+  }
+  if (!confirm('씬보드 분리 전 원문으로 복구할까요?\n이 메시지의 분리된 씬보드 카드는 제거되며, 보관함에 따로 저장한 카드는 유지됩니다.')) return false;
+
+  const scene = Object.assign({}, msg.extra?.sceneBoard || {});
+  msg.extra = msg.extra || {};
+  msg.mes = original;
+  msg.extra.sceneBoardRestoredHash = hash(original);
+  try { delete msg.extra.sceneBoard; } catch {}
+  try { delete msg.extra.sceneBoardOriginalMes; } catch {}
+  // A translated display copy can otherwise cover the restored source after reload.
+  // Translation caches remain untouched; only the currently forced display text is cleared.
+  try { delete msg.extra.display_text; } catch {}
+
+  removeRecentForRestoredMessage(payload, scene);
+  setMessageText(payload, original);
+  persistChat();
+  saveSettings(true);
+  refreshScenePrompt();
+  renderInlinePanel();
+  ensureRestoreButton(payload.mes);
+  toast('분리 전 원문으로 복구했습니다.', 'success');
+  return true;
 }
 
 const EXPLICIT_TAG_RE = /^(?:scene[-_ ]?board|scene[-_ ]?slate|scene[-_ ]?state|state[-_ ]?panel|status[-_ ]?panel|status|state|slate|infoboard|info[-_ ]?board|info[-_ ]?panel|hud|yaml|json|markdown|md|text)\b/i;
@@ -670,6 +768,7 @@ function clearSceneBoardExtrasInLoadedChat(charKey = null) {
 
 function processPayload(payload, opts = {}) {
   if (!settings.enabled || !payload || payload.isUser) return false;
+  ensureRestoreButton(payload.mes);
   const latest = latestCharacterPayload();
   if (latest?.mes && payload.mes !== latest.mes && !opts.force) return false;
   const msg = payload.msg;
@@ -689,9 +788,14 @@ function processPayload(payload, opts = {}) {
     addRecent(entry);
     lastInlinePayload = payload;
     renderInlinePanel();
+    ensureRestoreButton(payload.mes);
     return true;
   }
   const source = messageSourceText(msg?.mes || payload.text || '', payload.textEl);
+  if (shouldSkipRestoredMessage(msg, source)) {
+    ensureRestoreButton(payload.mes);
+    return false;
+  }
   const split = splitSceneBoard(source);
   if (!split?.board) return false;
   const entry = makeEntry(payload, split.board, split.body, split.mode || '');
@@ -707,6 +811,7 @@ function processPayload(payload, opts = {}) {
   addRecent(entry);
   lastInlinePayload = payload;
   renderInlinePanel();
+  ensureRestoreButton(payload.mes);
   return true;
 }
 function parseLatestMessage(force = false) {
@@ -745,6 +850,7 @@ function exposeSceneBoardApi() {
 
 function renderInlinePanel() {
   $('.sb-inline-panel').remove();
+  syncRestoreButtons(document.getElementById('chat') || document);
   if (!settings.enabled) return;
   const payload = latestCharacterPayload() || lastInlinePayload;
   if (!payload?.mes || payload.isUser) return;
@@ -948,6 +1054,7 @@ function setupEvents() {
       setTimeout(() => {
         const payload = payloadFromEventArgs(args) || latestCharacterPayload();
         if (payload && !payload.isUser) processPayload(payload);
+        if (payload?.mes) ensureRestoreButton(payload.mes);
       }, 180);
     });
     bind('MESSAGE_RENDERED', (...args) => {
@@ -955,6 +1062,7 @@ function setupEvents() {
       setTimeout(() => {
         const payload = payloadFromEventArgs(args);
         if (payload && !payload.isUser && latestCharacterPayload()?.mes === payload.mes) processPayload(payload);
+        if (payload?.mes) ensureRestoreButton(payload.mes);
       }, 220);
     });
     bind('CHAT_CHANGED', () => {
@@ -968,6 +1076,7 @@ function setupEvents() {
           refreshScenePrompt();
           renderInlinePanel();
         }
+        syncRestoreButtons(document.getElementById('chat') || document);
       }, 200);
     });
   }
@@ -979,6 +1088,8 @@ function setupEvents() {
     if ($(t).closest('.sb-settings-btn').length) { e.preventDefault(); e.stopPropagation(); const box = $('.sb-library-settings'); box.prop('hidden', !box.prop('hidden')); return; }
     if ($(t).closest('.sb-prev').length) { e.preventDefault(); e.stopPropagation(); const len = currentChatRecentList().length; if (len) { currentRecentIndex = (currentRecentIndex + 1) % len; renderInlinePanel(); } return; }
     if ($(t).closest('.sb-next').length) { e.preventDefault(); e.stopPropagation(); const len = currentChatRecentList().length; if (len) { currentRecentIndex = (currentRecentIndex - 1 + len) % len; renderInlinePanel(); } return; }
+    const restore = $(t).closest('.sb-restore-original-btn');
+    if (restore.length) { e.preventDefault(); e.stopPropagation(); const payload = messagePayloadFromTarget(restore[0]); if (payload) restoreOriginalMessage(payload); return; }
     if ($(t).closest('.sb-save-btn').length) { e.preventDefault(); e.stopPropagation(); const entry = inlineEntry(); if (entry) saveBoard(entry); return; }
     if ($(t).closest('.sb-inline-delete-btn').length) { e.preventDefault(); e.stopPropagation(); const entry = inlineEntry(); if (entry) deleteRecentEntry(entry); return; }
     const filter = $(t).closest('.sb-filter');
@@ -1015,7 +1126,15 @@ function setupEvents() {
     if (copy.length) { e.preventDefault(); e.stopPropagation(); const card = copy.closest('.sb-card'); const entry = savedList(String(card.data('char') || '')).find(x => x.id === String(card.data('id') || '')); if (entry) copyText(entry.text).then(ok => toast(ok ? '복사했습니다.' : '복사에 실패했습니다.', ok ? 'success' : 'warn')); return; }
   });
   $(document).off('change.sceneBoard').on('change.sceneBoard', '#sb-font-size, #sb-settings-font-size', function(){ settings.fontSize = clampFontSize($(this).val()); applyFontSize(); saveSettings(true); renderLibrary(); });
-  $(document).off('keydown.sceneBoard').on('keydown.sceneBoard', function(e){ if (e.key === 'Escape' && $('.sb-popover').length) closeLibrary(); });
+  $(document).off('keydown.sceneBoard').on('keydown.sceneBoard', function(e){
+    if ((e.key === 'Enter' || e.key === ' ') && $(e.target).closest('.sb-restore-original-btn').length) {
+      e.preventDefault(); e.stopPropagation();
+      const payload = messagePayloadFromTarget(e.target);
+      if (payload) restoreOriginalMessage(payload);
+      return;
+    }
+    if (e.key === 'Escape' && $('.sb-popover').length) closeLibrary();
+  });
 }
 function boot() {
   runtime.booted = true;
@@ -1027,7 +1146,7 @@ function boot() {
   settingsSaveCanStart();
   exposeSceneBoardApi();
   setTimeout(setupExtensionsMenuButton, 900);
-  setTimeout(() => { if (settings.enabled) { refreshScenePrompt(); renderInlinePanel(); } }, 1000);
+  setTimeout(() => { if (settings.enabled) { refreshScenePrompt(); renderInlinePanel(); syncRestoreButtons(document.getElementById('chat') || document); } }, 1000);
 }
 
 if (typeof jQuery === 'function') jQuery(() => { try { boot(); } catch (e) { console.error('[Scene Board] boot failed', e); } });

@@ -1108,3 +1108,34 @@
 .sb-inline-delete-btn,
 .sb-arrow { flex: 0 0 auto !important; }
 .sb-line-row { border-bottom: 1px solid rgba(78,74,58,.18) !important; }
+
+/* Restore the full pre-split message beside SillyTavern's message edit control. */
+.sb-restore-original-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 0 5px !important;
+  margin: 0 2px !important;
+  border: 0 !important;
+  border-radius: 5px !important;
+  background: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+  font-family: inherit !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  opacity: .72 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+.sb-restore-original-btn:hover,
+.sb-restore-original-btn:focus-visible {
+  background: rgba(127,127,127,.14) !important;
+  opacity: 1 !important;
+  outline: none !important;
+}
