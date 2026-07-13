@@ -347,11 +347,17 @@ function ensureRestoreButton(mes) {
   edit.after(button);
   return true;
 }
-function syncRestoreButtons(scope = document) {
+function syncRestoreButtonsFromRecent() {
   try {
-    const $scope = $(scope);
-    if ($scope.is('.mes')) ensureRestoreButton($scope[0]);
-    $scope.find('.mes').each(function(){ ensureRestoreButton(this); });
+    $('.sb-restore-original-btn').remove();
+    const entries = currentChatRecentList().slice(0, MAX_RECENT_BOARDS);
+    for (const entry of entries) {
+      if (!String(entry?.originalMes || '').trimEnd()) continue;
+      const idx = Number(entry?.messageIndex);
+      if (!Number.isFinite(idx)) continue;
+      const mes = document.querySelector(`.mes[mesid="${idx}"], .mes[data-mesid="${idx}"]`);
+      if (mes) ensureRestoreButton(mes);
+    }
   } catch {}
 }
 function removeRecentForRestoredMessage(payload, scene = {}) {
@@ -394,7 +400,7 @@ function restoreOriginalMessage(payload) {
   saveSettings(true);
   refreshScenePrompt();
   renderInlinePanel();
-  syncRestoreButtons(document.getElementById('chat') || document);
+  syncRestoreButtonsFromRecent();
   toast('분리 전 원문으로 복구했습니다.', 'success');
   return true;
 }
@@ -709,7 +715,7 @@ function addRecent(entry) {
   currentRecentIndex = 0;
   if (merged.chatKey === currentChatKey()) applyScenePrompt(merged);
   saveSettings();
-  setTimeout(() => syncRestoreButtons(document.getElementById('chat') || document), 0);
+  setTimeout(() => syncRestoreButtonsFromRecent(), 0);
   return merged;
 }
 function saveBoard(entry) {
@@ -753,7 +759,7 @@ function deleteRecentEntry(entry) {
   refreshScenePrompt();
   saveSettings(true);
   renderInlinePanel();
-  syncRestoreButtons(document.getElementById('chat') || document);
+  syncRestoreButtonsFromRecent();
   toast(before !== filtered.length ? '삭제했습니다.' : '삭제할 씬보드가 없습니다.', before !== filtered.length ? 'success' : 'info');
   return before !== filtered.length;
 }
@@ -805,36 +811,6 @@ function clearSceneBoardExtrasInLoadedChat(charKey = null) {
   }
   if (changed) persistChat();
 }
-function migrateAndPurgeLegacyOriginalBackups() {
-  let settingsChanged = sanitizeStoredEntries();
-  let chatChanged = false;
-  const chat = liveContext()?.chat || ctx?.chat || [];
-  for (const msg of chat) {
-    const scene = msg?.extra?.sceneBoard;
-    const legacyOriginal = String(msg?.extra?.sceneBoardOriginalMes || scene?.originalMes || '').trimEnd();
-    if (scene?.text && legacyOriginal) {
-      const charKey = scene.characterKey || currentCharacterKey();
-      const cached = recentList(charKey).find((entry) => sameEntry(entry, scene));
-      if (cached && !String(cached.originalMes || '').trimEnd()) {
-        cached.originalMes = legacyOriginal;
-        settingsChanged = true;
-      }
-    }
-    if (msg?.extra?.sceneBoardOriginalMes) {
-      try { delete msg.extra.sceneBoardOriginalMes; chatChanged = true; } catch {}
-    }
-    if (scene?.originalMes) {
-      try {
-        msg.extra.sceneBoard = stripOriginalMes(scene);
-        chatChanged = true;
-      } catch {}
-    }
-  }
-  if (chatChanged) persistChat();
-  if (settingsChanged) saveSettings(true);
-  return settingsChanged || chatChanged;
-}
-
 function processPayload(payload, opts = {}) {
   if (!settings.enabled || !payload || payload.isUser) return false;
   ensureRestoreButton(payload.mes);
@@ -843,26 +819,22 @@ function processPayload(payload, opts = {}) {
   const msg = payload.msg;
   const existing = msg?.extra?.sceneBoard;
   if (existing?.text) {
-    const legacyOriginal = String(msg?.extra?.sceneBoardOriginalMes || existing.originalMes || '').trimEnd();
     const entry = Object.assign({}, stripOriginalMes(existing), {
       characterKey: existing.characterKey || currentCharacterKey(),
       characterName: existing.characterName || currentCharacterName(),
       chatKey: existing.chatKey || currentChatKey(),
     });
     const cached = recentList(entry.characterKey).find((item) => sameEntry(item, entry));
-    if (legacyOriginal) entry.originalMes = legacyOriginal;
-    else if (String(cached?.originalMes || '').trimEnd()) entry.originalMes = String(cached.originalMes).trimEnd();
+    if (String(cached?.originalMes || '').trimEnd()) entry.originalMes = String(cached.originalMes).trimEnd();
     if (wasCleared(entry)) {
       try { delete msg.extra.sceneBoard; } catch {}
-      try { delete msg.extra.sceneBoardOriginalMes; } catch {}
       persistChat();
       return false;
     }
     if (msg?.extra) {
       const cleanScene = stripOriginalMes(entry);
-      if (existing.characterKey !== cleanScene.characterKey || existing.chatKey !== cleanScene.chatKey || existing.originalMes || msg.extra.sceneBoardOriginalMes) {
+      if (existing.characterKey !== cleanScene.characterKey || existing.chatKey !== cleanScene.chatKey || existing.originalMes) {
         msg.extra.sceneBoard = cleanScene;
-        try { delete msg.extra.sceneBoardOriginalMes; } catch {}
         persistChat();
       }
     }
@@ -883,7 +855,6 @@ function processPayload(payload, opts = {}) {
   if (msg) {
     msg.extra = msg.extra || {};
     msg.extra.sceneBoard = stripOriginalMes(entry);
-    try { delete msg.extra.sceneBoardOriginalMes; } catch {}
     msg.mes = split.body;
   }
   setMessageText(payload, split.body);
@@ -930,7 +901,7 @@ function exposeSceneBoardApi() {
 
 function renderInlinePanel() {
   $('.sb-inline-panel').remove();
-  syncRestoreButtons(document.getElementById('chat') || document);
+  syncRestoreButtonsFromRecent();
   if (!settings.enabled) return;
   const payload = latestCharacterPayload() || lastInlinePayload;
   if (!payload?.mes || payload.isUser) return;
@@ -1149,9 +1120,8 @@ function setupEvents() {
       currentRecentIndex = 0;
       $('.sb-inline-panel').remove();
       setTimeout(() => {
-        migrateAndPurgeLegacyOriginalBackups();
-        if (!settings.enabled) {
-          syncRestoreButtons(document.getElementById('chat') || document);
+                if (!settings.enabled) {
+          syncRestoreButtonsFromRecent();
           return;
         }
         // Re-read the latest rendered reply in this chat. This restores its own
@@ -1160,7 +1130,7 @@ function setupEvents() {
           refreshScenePrompt();
           renderInlinePanel();
         }
-        syncRestoreButtons(document.getElementById('chat') || document);
+        syncRestoreButtonsFromRecent();
       }, 200);
     });
   }
@@ -1189,7 +1159,7 @@ function setupEvents() {
       clearScenePrompt();
       currentRecentIndex = 0;
       $('.sb-inline-panel').remove();
-      saveSettings(true); renderLibrary(); updateSavedCount(); syncRestoreButtons(document.getElementById('chat') || document); toast('현재 캐릭터 씬보드를 초기화했습니다.', 'success'); return;
+      saveSettings(true); renderLibrary(); updateSavedCount(); syncRestoreButtonsFromRecent(); toast('현재 캐릭터 씬보드를 초기화했습니다.', 'success'); return;
     }
     if ($(t).closest('#sb-reset-all').length) {
       e.preventDefault(); e.stopPropagation();
@@ -1202,7 +1172,7 @@ function setupEvents() {
       clearScenePrompt();
       currentRecentIndex = 0;
       $('.sb-inline-panel').remove();
-      saveSettings(true); renderLibrary(); updateSavedCount(); syncRestoreButtons(document.getElementById('chat') || document); toast('씬보드 내역 전체를 초기화했습니다.', 'success'); return;
+      saveSettings(true); renderLibrary(); updateSavedCount(); syncRestoreButtonsFromRecent(); toast('씬보드 내역 전체를 초기화했습니다.', 'success'); return;
     }
     const del = $(t).closest('.sb-card-delete');
     if (del.length) { e.preventDefault(); e.stopPropagation(); const card = del.closest('.sb-card'); deleteSavedBoard(String(card.data('char') || ''), String(card.data('id') || '')); return; }
@@ -1224,7 +1194,6 @@ function boot() {
   runtime.booted = true;
   runtime.version = VERSION;
   sanitizeStoredEntries();
-  migrateAndPurgeLegacyOriginalBackups();
   applyFontSize();
   setupSettingsPanel();
   setupExtensionsMenuButton();
@@ -1233,12 +1202,11 @@ function boot() {
   exposeSceneBoardApi();
   setTimeout(setupExtensionsMenuButton, 900);
   setTimeout(() => {
-    migrateAndPurgeLegacyOriginalBackups();
     if (settings.enabled) {
       refreshScenePrompt();
       renderInlinePanel();
     }
-    syncRestoreButtons(document.getElementById('chat') || document);
+    syncRestoreButtonsFromRecent();
   }, 1000);
 }
 
