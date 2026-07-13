@@ -181,30 +181,6 @@ function stripOriginalMes(entry = {}) {
   delete copy.originalMes;
   return copy;
 }
-function sanitizeStoredEntries() {
-  let changed = false;
-  for (const [charKey, value] of Object.entries(settings.recentByCharacter || {})) {
-    const source = Array.isArray(value) ? value : [];
-    const cleaned = source.slice(0, MAX_RECENT_BOARDS).map((entry) => {
-      const copy = Object.assign({}, entry || {});
-      if (!String(copy.originalMes || '').trimEnd()) delete copy.originalMes;
-      return copy;
-    });
-    if (!Array.isArray(value) || JSON.stringify(value) !== JSON.stringify(cleaned)) {
-      settings.recentByCharacter[charKey] = cleaned;
-      changed = true;
-    }
-  }
-  for (const [charKey, value] of Object.entries(settings.boardsByCharacter || {})) {
-    const source = Array.isArray(value) ? value : [];
-    const cleaned = source.map(stripOriginalMes);
-    if (!Array.isArray(value) || JSON.stringify(value) !== JSON.stringify(cleaned)) {
-      settings.boardsByCharacter[charKey] = cleaned;
-      changed = true;
-    }
-  }
-  return changed;
-}
 function ensureCharacterStores(charKey = currentCharacterKey()) {
   if (!settings.recentByCharacter[charKey] || !Array.isArray(settings.recentByCharacter[charKey])) settings.recentByCharacter[charKey] = [];
   if (!settings.boardsByCharacter[charKey] || !Array.isArray(settings.boardsByCharacter[charKey])) settings.boardsByCharacter[charKey] = [];
@@ -1099,7 +1075,15 @@ function setupEvents() {
   const et = ctx?.event_types || {};
   if (es && typeof es.on === 'function') {
     const bind = (name, fn) => { if (et[name]) bindRuntimeEvent(es, et[name], fn); };
-    bind('APP_READY', markSettingsSaveReady);
+    bind('APP_READY', () => {
+      markSettingsSaveReady();
+      setupExtensionsMenuButton();
+      if (settings.enabled) {
+        refreshScenePrompt();
+        renderInlinePanel();
+      }
+      syncRestoreButtonsFromRecent();
+    });
     bind('CHARACTER_MESSAGE_RENDERED', (...args) => {
       if (!settings.enabled) return;
       setTimeout(() => {
@@ -1193,21 +1177,17 @@ function setupEvents() {
 function boot() {
   runtime.booted = true;
   runtime.version = VERSION;
-  sanitizeStoredEntries();
   applyFontSize();
   setupSettingsPanel();
   setupExtensionsMenuButton();
   setupEvents();
   settingsSaveCanStart();
   exposeSceneBoardApi();
-  setTimeout(setupExtensionsMenuButton, 900);
-  setTimeout(() => {
-    if (settings.enabled) {
-      refreshScenePrompt();
-      renderInlinePanel();
-    }
-    syncRestoreButtonsFromRecent();
-  }, 1000);
+  if (settings.enabled) {
+    refreshScenePrompt();
+    renderInlinePanel();
+  }
+  syncRestoreButtonsFromRecent();
 }
 
 if (typeof jQuery === 'function') jQuery(() => { try { boot(); } catch (e) { console.error('[Scene Board] boot failed', e); } });
