@@ -1,7 +1,5 @@
 #scene-board-settings,
 #scene-board-settings *,
-#sb-extension-menu-button,
-#sb-extension-menu-button *,
 .sb-inline-panel,
 .sb-inline-panel *,
 .sb-popover,
@@ -10,8 +8,7 @@
 }
 
 .sb-inline-panel,
-.sb-popover,
-#sb-extension-menu-button {
+.sb-popover {
   --sb-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", system-ui, sans-serif;
   --sb-bg: rgba(250, 248, 243, .96);
   --sb-line: rgba(78, 74, 58, .17);
@@ -97,25 +94,6 @@
 #scene-board-settings > .inline-drawer-toggle .fa-solid::before {
   font-family: "Font Awesome 6 Free", "Font Awesome 5 Free" !important;
   font-weight: 900 !important;
-}
-
-#extensionsMenu #sb-extension-menu-button {
-  align-items: center !important;
-  gap: 8px !important;
-}
-.sb-menu-icon {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 18px !important;
-  height: 18px !important;
-  min-width: 18px !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  font-size: 15px !important;
-  line-height: 1 !important;
 }
 
 .sb-inline-panel {
@@ -521,11 +499,6 @@
   background: rgba(255,255,255,.26) !important;
   padding: 8px 10px !important;
 }
-#extensionsMenu #sb-extension-menu-button .sb-menu-icon {
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
 @media(max-width: 760px) {
   .sb-popover {
     inset: auto auto auto auto !important;
@@ -784,35 +757,6 @@
   background: rgba(128,128,128,.08) !important;
   color: var(--sb-ink) !important;
 }
-
-
-/* 1.0.0 final: matching inline buttons and extension menu spacing */
-#extensionsMenu #sb-extension-menu-button {
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-}
-.sb-menu-icon {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 28px !important;
-  height: 28px !important;
-  min-width: 28px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  font-size: 15px !important;
-  line-height: 1 !important;
-}
-.sb-menu-title {
-  display: inline-block !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
 .sb-inline-left {
   display: inline-flex !important;
   align-items: center !important;
@@ -850,26 +794,6 @@
   background: rgba(128,128,128,.08) !important;
   color: var(--sb-ink) !important;
 }
-
-
-/* 1.0.1 final polish: tighter menu icon gap + board text one step smaller */
-#extensionsMenu #sb-extension-menu-button {
-  display: flex !important;
-  align-items: center !important;
-  gap: 5px !important;
-}
-.sb-menu-icon {
-  width: 18px !important;
-  height: 22px !important;
-  min-width: 18px !important;
-  font-size: 15px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-.sb-menu-title {
-  margin-left: 0 !important;
-  padding-left: 0 !important;
-}
 .sb-inline-panel {
   font-size: calc(var(--mainFontSize, var(--sb-user-font-size, 13px)) - 1px) !important;
 }
@@ -879,88 +803,10 @@
   line-height: 1.42 !important;
 }
 
-
-/* 1.0.2: match Phrase Desk extension menu icon spacing exactly */
-#extensionsMenu #sb-extension-menu-button {
-  display: flex !important;
-  align-items: center !important;
-  gap: 10px !important;
-  column-gap: 10px !important;
-  min-height: 30px !important;
-  line-height: 1.35 !important;
-  white-space: normal !important;
-}
-#extensionsMenu #sb-extension-menu-button .sb-menu-icon {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 20px !important;
-  min-width: 20px !important;
-  height: 20px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  font-family: inherit !important;
-  font-size: 15px !important;
-  line-height: 1 !important;
-  letter-spacing: 0 !important;
-  opacity: 1 !important;
-}
-#extensionsMenu #sb-extension-menu-button .sb-menu-title {
-  display: inline-block !important;
-  line-height: 1.35 !important;
-  font-size: inherit !important;
-  font-weight: inherit !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
 /* v1.0.0 UI compatibility fix: keep SillyTavern native drawer/menu behavior */
 #scene-board-settings > .inline-drawer-content[style*="display: none"],
 #scene-board-settings > .inline-drawer-content[style*="display:none"] {
   display: none !important;
-}
-
-#extensionsMenu #sb-extension-menu-button {
-  border: 0 !important;
-  box-shadow: none !important;
-  outline: none !important;
-  background: transparent !important;
-  margin: 0 !important;
-  border-radius: 0 !important;
-  min-height: unset !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  color: inherit !important;
-  font-weight: inherit !important;
-}
-#extensionsMenu #sb-extension-menu-button:hover {
-  background: rgba(128, 128, 128, .10) !important;
-}
-#extensionsMenu #sb-extension-menu-button .sb-menu-icon,
-#extensionsMenu #sb-extension-menu-button span:first-child {
-  display: inline !important;
-  width: auto !important;
-  min-width: 0 !important;
-  height: auto !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  text-align: inherit !important;
-  line-height: inherit !important;
-  font-size: inherit !important;
-  font-family: inherit !important;
-}
-#extensionsMenu #sb-extension-menu-button .sb-menu-title {
-  display: inline !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  font-weight: inherit !important;
-  line-height: inherit !important;
-  font-size: inherit !important;
 }
 
 

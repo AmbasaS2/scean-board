@@ -1080,7 +1080,6 @@ function setupEvents() {
     const bind = (name, fn) => { if (et[name]) bindRuntimeEvent(es, et[name], fn); };
     bind('APP_READY', () => {
       markSettingsSaveReady();
-      setupExtensionsMenuButton();
       if (settings.enabled) {
         refreshScenePrompt();
         renderInlinePanel();
@@ -1124,7 +1123,6 @@ function setupEvents() {
   $(document).off('click.sceneBoard').on('click.sceneBoard', function(e) {
     const t = e.target;
     if ($(t).closest('#sb-extension-menu-button').length) { e.preventDefault(); e.stopPropagation(); return openLibrary(); }
-    if ($(t).closest('#extensionsMenuButton, #extensionsMenu_button, [title="Extensions"], [title="확장"]').length) setTimeout(setupExtensionsMenuButton, 80);
     if ($(t).closest('.sb-close').length) { e.preventDefault(); e.stopPropagation(); return closeLibrary(); }
     if ($(t).closest('.sb-settings-btn').length) { e.preventDefault(); e.stopPropagation(); const box = $('.sb-library-settings'); box.prop('hidden', !box.prop('hidden')); return; }
     if ($(t).closest('.sb-prev').length) { e.preventDefault(); e.stopPropagation(); const len = currentChatRecentList().length; if (len) { currentRecentIndex = (currentRecentIndex + 1) % len; renderInlinePanel(); } return; }
