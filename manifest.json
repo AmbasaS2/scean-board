@@ -1,8 +1,8 @@
 {
-  "name": "🔤 Phrase Desk",
-  "display_name": "🔤 Phrase Desk",
-  "version": "1.3.1",
-  "description": "Phrase Desk: English phrase notebook and translation helper",
+  "name": "🧭 Scene Board",
+  "display_name": "🧭 Scene Board",
+  "version": "1.0.7",
+  "description": "Scene Board: separates status panels from replies and stores scene boards by character",
   "author": "private",
   "js": "index.js",
   "css": "style.css"
