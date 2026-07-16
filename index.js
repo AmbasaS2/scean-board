@@ -927,7 +927,10 @@ function setupSettingsPanel() {
       </div>
       <div class="sb-setting-row sb-font-size-row">
         <label for="sb-settings-font-size">씬보드 글씨 크기</label>
-        <input id="sb-settings-font-size" class="text_pole sb-font-size-input" type="number" min="11" max="18" step="1" value="${esc(clampFontSize(settings.fontSize))}">
+        <div class="sb-font-size-inline">
+          <input id="sb-settings-font-size" class="text_pole sb-font-size-input" type="number" min="11" max="18" step="1" value="${esc(clampFontSize(settings.fontSize))}">
+          <span class="sb-font-size-unit">px</span>
+        </div>
       </div>
       <div class="sb-settings-foot"><span><b>${savedList().length}</b>개 저장됨</span></div>
     </div>

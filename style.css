@@ -1139,3 +1139,49 @@
   opacity: 1 !important;
   outline: none !important;
 }
+
+
+/* v1.0.7: compact extension settings refinement */
+#scene-board-settings .sb-settings-content {
+  border-top: 1px solid rgba(128, 118, 100, .18) !important;
+  padding-top: 8px !important;
+}
+
+#scene-board-settings input[type="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  flex: 0 0 16px !important;
+  aspect-ratio: 1 / 1 !important;
+}
+
+#scene-board-settings .sb-font-size-inline {
+  display: inline-grid !important;
+  grid-template-columns: auto auto !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+#scene-board-settings .sb-font-size-input {
+  width: 68px !important;
+  max-width: 84px !important;
+  min-width: 0 !important;
+  min-height: 28px !important;
+  height: 28px !important;
+  margin: 0 !important;
+  padding: 0 8px !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  box-shadow: none !important;
+}
+
+#scene-board-settings .sb-font-size-unit {
+  font-size: 12px !important;
+  opacity: .82 !important;
+  line-height: 1 !important;
+}
+
+#scene-board-settings .sb-settings-foot {
+  margin-top: 3px !important;
+}
