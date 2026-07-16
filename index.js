@@ -916,6 +916,7 @@ function setupSettingsPanel() {
       <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
     <div class="inline-drawer-content sb-settings-content" style="display:none;">
+      <div class="sb-settings-inner">
       <div class="sb-setting-row">
         <label><input id="sb-enabled" type="checkbox" ${settings.enabled ? 'checked' : ''}> Scene Board 활성화</label>
       </div>
@@ -933,6 +934,7 @@ function setupSettingsPanel() {
         </div>
       </div>
       <div class="sb-settings-foot"><span><b>${savedList().length}</b>개 저장됨</span></div>
+      </div>
     </div>
   </div>`;
   ($('#extensions_settings2').length ? $('#extensions_settings2') : $('#extensions_settings')).append(html);

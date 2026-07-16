@@ -26,7 +26,6 @@
   font-family: inherit !important;
 }
 #scene-board-settings .sb-settings-content {
-  padding: 6px 0 8px !important;
   font-size: 12px !important;
 }
 #scene-board-settings .sb-setting-row {
@@ -987,10 +986,15 @@
 }
 
 
-/* v1.0.7: compact extension settings refinement */
-#scene-board-settings .sb-settings-content {
+/* v1.0.7: keep ST's animated drawer untouched; style the inner settings shell instead. */
+#scene-board-settings > .sb-settings-content {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+#scene-board-settings .sb-settings-inner {
   border-top: 1px solid rgba(128, 118, 100, .18) !important;
-  padding-top: 8px !important;
+  padding: 8px 0 8px !important;
 }
 
 #scene-board-settings input[type="checkbox"] {
