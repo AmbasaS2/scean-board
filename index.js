@@ -969,7 +969,7 @@ function setupExtensionsMenuButton() {
   const item = document.createElement('div');
   item.id = 'sb-extension-menu-button';
   item.className = 'list-group-item flex-container flexGap5 interactable';
-  item.innerHTML = `<span class="sb-menu-icon" aria-hidden="true">🧭</span><span class="sb-menu-title">Scene Board</span>`;
+  item.innerHTML = `<span class="sb-menu-icon extensionsMenuExtensionButton" aria-hidden="true">🧭</span><span class="sb-menu-title">Scene Board</span>`;
   menu.appendChild(item);
 }
 function closeLibrary() { $('.sb-popover').remove(); }
