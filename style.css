@@ -511,7 +511,7 @@
 }
 
 
-/* 0.1.4 layout polish: Phrase Desk centered popover, compact inline board, icon-only cards */
+/* 0.1.4 layout polish: centered popover, compact inline board, icon-only cards */
 .sb-popover {
   position: fixed !important;
   inset: auto !important;
@@ -1034,4 +1034,103 @@
 
 #scene-board-settings .sb-settings-foot {
   margin-top: 3px !important;
+}
+
+/* v1.0.7 theme surfaces: follow the active SillyTavern theme without translucent panels. */
+.sb-inline-panel,
+.sb-popover {
+  --sb-font: inherit;
+  --sb-bg-source: var(--SmartThemeBlurTintColor, #f7f7f7);
+  --sb-ink-source: var(--SmartThemeBodyColor, #2d2e27);
+  --sb-bg: rgb(from var(--sb-bg-source) r g b / 1);
+  --sb-ink: rgb(from var(--sb-ink-source) r g b / 1);
+  --sb-muted: color-mix(in srgb, var(--sb-ink) 66%, var(--sb-bg) 34%);
+  --sb-line: color-mix(in srgb, var(--sb-ink) 18%, var(--sb-bg) 82%);
+  --sb-surface: color-mix(in srgb, var(--sb-ink) 5%, var(--sb-bg) 95%);
+  --sb-surface-strong: color-mix(in srgb, var(--sb-ink) 8%, var(--sb-bg) 92%);
+  --sb-surface-hover: color-mix(in srgb, var(--sb-ink) 12%, var(--sb-bg) 88%);
+  font-family: inherit !important;
+}
+
+.sb-inline-panel,
+.sb-popover {
+  background: var(--sb-bg) !important;
+  color: var(--sb-ink) !important;
+  border-color: var(--sb-line) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.sb-popover button,
+.sb-popover input,
+.sb-popover textarea,
+.sb-popover select,
+.sb-inline-panel button,
+.sb-inline-panel input {
+  font-family: inherit !important;
+  color: var(--sb-ink) !important;
+}
+
+.sb-side,
+.sb-library-settings,
+.sb-card,
+.sb-board-text,
+.sb-card pre,
+.sb-card .sb-line-board {
+  background: var(--sb-surface) !important;
+  color: var(--sb-ink) !important;
+  border-color: var(--sb-line) !important;
+}
+
+.sb-library-settings input {
+  background: var(--sb-surface-strong) !important;
+  color: var(--sb-ink) !important;
+  border-color: var(--sb-line) !important;
+}
+
+.sb-library-settings input::placeholder {
+  color: var(--sb-muted) !important;
+  opacity: 1 !important;
+}
+
+.sb-library-settings button {
+  background: var(--sb-surface-strong) !important;
+  color: var(--sb-ink) !important;
+  border-color: var(--sb-line) !important;
+}
+
+.sb-side button:hover,
+.sb-side button.on,
+.sb-library-settings button:hover,
+.sb-close:hover,
+.sb-settings-btn:hover,
+.sb-save-btn:hover,
+.sb-inline-delete-btn:hover,
+.sb-arrow:hover:not(:disabled),
+.sb-card-tools button:hover,
+.sb-card button.sb-card-copy:hover,
+.sb-card button.sb-card-delete:hover {
+  background: var(--sb-surface-hover) !important;
+  color: var(--sb-ink) !important;
+}
+
+.sb-head span,
+.sb-side button,
+.sb-library-settings label,
+.sb-card-top span,
+.sb-empty,
+.sb-inline-number,
+.sb-save-btn,
+.sb-inline-delete-btn,
+.sb-arrow,
+.sb-close,
+.sb-settings-btn,
+.sb-card-tools button,
+.sb-card button.sb-card-copy,
+.sb-card button.sb-card-delete {
+  color: var(--sb-muted) !important;
+}
+
+.sb-line-row {
+  border-bottom-color: var(--sb-line) !important;
 }
